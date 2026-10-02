@@ -1,0 +1,374 @@
+#system:程序员设定的规则和工具，仅在开头出现一次
+#SYSTEM_PROMPT:相当于导演(程序员)给ai_agent的剧本大纲，用来定人设，立规矩，给工具
+#user:用户和非llm自己生成的外部信息
+#assistant:ai_agent自己
+
+#ReAct循环解读：将问题打包为messages进入循环
+#第一次循环：将messages传入给llm，llm决定要用哪个工具以及要处理的字符串是哪个，然后continue重新进入循环
+#第二次循环：调用工具进行字符串处理(计算或者是获取时间)
+#第三次循环：继续处理数据或者是匹配(if "Final Answer:" in output)得到答案
+#第四次...
+
+
+from datetime import datetime
+import re
+
+#正则：一套字符匹配规则，用来在字符里查找，校验，提取内容（要先import才能用）
+
+import os
+from dotenv import load_dotenv
+from openai import OpenAI
+
+load_dotenv()
+
+#执行加载默认自动读取当前目录的“.env”文件
+#一般在.env里存放api-key
+
+client = OpenAI(api_key = os.getenv("DEEPSEEK_API_KEY"),base_url="https://api.deepseek.com")
+
+#原本OpenAi这个库是给open ai用的但是ds的和它的一样
+#用base_url改接口兼容open ai
+#os.getenv()从程序的环境变量里读出叫"DEEPSEEK_API_KEY"的值
+#client是客户端的意思
+
+def calculator (expr:str) -> str:
+    try:
+        if not re.fullmatch(r"[0-9+\-*/().\s]+",expr):
+            return "错误：含非法字符"
+        return str(eval(expr))
+    except Exception as e:
+        return f"计算错误：{e}"
+
+#re.fullmatch表示expr必须完全匹配这个规则(正则里的一个常用函数)
+#在正则中‘-'单个减号表示至或者到的意思，要想表示减要用‘\’转义
+#[]是字符集的意思，表示在集合里的字符才能出现
+#\s是空格的意思
+#集合外的加号表示至少出现一次
+#（）中的r表示是原始字符串，有了它py解释器就不会解析它从而将其传给re模块去解析
+#加个r可以防止\被吃掉
+
+def get_time(_:str = "") -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+#此处变量名叫“_”为str类型，默认值为空格
+#agent所有工具统一接口全部都要接收入参
+#这里的get_time不需要参数就加个“_”占位保持接口一致
+#strftime把时间格式化位你指定的样子
+#y:年，m：月，d：日，H：小时，M：分钟，S：秒
+
+TOOLS = {"calculator":calculator , "get_time":get_time}
+SYSTEM_PROMPT = """你是一个 ReAct 智能体。可用工具：
+1. calculator：计算数学表达式，输入如 "2+3*4"
+2. get_time：获取当前时间，输入留空
+
+严格按以下格式输出：
+Thought: 你的思考
+Action: 工具名
+Action Input: 工具输入
+
+当能给出最终答案时，输出：
+Final Answer: 最终答案"""
+
+#系统提示词
+
+def call_llm(messages):
+    resp = client.chat.completions.create(
+        model = "deepseek-chat",
+        messages = messages,
+        temperature = 0
+    )
+    return resp.choices[0].message.content
+
+#client是我们刚刚建好的大模型的客户端对象
+#.chat对话聊天窗口，它支持多轮对话，能够区分user，assistant助手，system系统提示词
+#.completion老一代的单句续写窗口，让大模型生成回复内容
+#.chat.completion二者合起来就是聊天式生成回复
+#.create()调用它才能向给ds服务器发送网络请求
+#message就是信息列表
+#.chioce[0]取返回的第一条回答
+#.message.content大模型输出的文字内容
+#temperature=0，temperature越低回答越确定。此处=0表示让大模型每次尽量选概率最高，最稳妥的答案
+#temperature越高回复越天马行空，发挥创意
+
+
+def run_agent(messages):
+
+    for step in range(5):
+        print(f"\n--- 第 {step+1} 步 ---")
+        output = call_llm(messages)
+        print(output)
+        messages.append({"role": "assistant", "content": output})
+
+#这里只循环5次怕出错
+
+        action_match = re.search(r"Action:\s*(\w+)", output)
+        input_match = re.search(r"Action Input:\s*(.+)", output)
+
+#re.search()正则里的另一个常用函数，在函数里查找是否能匹配上这段正则
+#re.search(a,b)在b中查找是否有符合正则a的，有就返回，没有就返回none
+#re.search()找到第一个匹配上的就返回匹配对象，否则返回none
+#Action选工具，Action Input传给工具的参数<-agent经过thought自动判断
+#“\s”代表空格，Tab（制表符）       “*”量词：表示0个或者是多个
+#“\s*”表示有或者没有空格都匹配
+#“\w”代表a-z，A-Z，0-9，下划线
+#“()”捕获组：把括号内匹配的内容单独提取出来，后面.group(1)要用
+#（\w）就是把匹配到的a-z，A-Z，0-9.下划线都提取出来传到后面的.group(1)去
+#“.+”啥都能抓
+
+        if action_match and input_match:
+            tool_name = action_match.group(1).strip()
+            tool_input = input_match.group(1).strip()
+            print(f"-> 调用工具：{tool_name}，参数：{tool_input}")
+
+#“.group(1)”拿到的一个匹配的字符串
+#“.strip()”删掉字符串开头和结尾的空格，换行，防止字符串有多余的空格，报错
+
+            if tool_name in TOOLS:
+                obs = TOOLS[tool_name](tool_input)
+            else:
+                obs = f"错误：未知工具 {tool_name}"
+
+            print(f"-> 观察结果：{obs}")
+            messages.append({"role": "user", "content": f"Observation: {obs}"})
+
+#f：将{tool_name}{obs}变量的值放到这句话里面，没有f对话py会将其当做字符串的一部分
+#将obs结果包装回ressages传给llm，让其重新思考
+#ReAct语法规定外部工具返回的观测结果统一包装成user返回给llm
+
+            continue
+
+        if "Final Answer:" in output:
+            print("\n✅ 最终答案：", output.split("Final Answer:", 1)[1].strip())
+            return
+
+# “.split(分隔符，次数)”将字符串切开，切成列表
+# “.strip()”删掉字符串开头和结尾的空格，换行，
+# [1] 下标为1的字符串
+# 此处相当于先将output切分成两部分，"(1)切一次得两段"
+# 下标为1的就是Final Answer的答案
+# 就是res = output.split("Final Answer:", 1) = [Final Answer,答案]
+
+        messages.append({"role": "user", "content": "请严格按格式输出，或给出 Final Answer。"})
+
+# 防止llm乱生成，提醒他在下一轮循环改正错误(不一定会完全改正，但会提高准确率)
+
+    print("\n任务失败，请重试(ai在5步内给出答案)")
+
+if __name__ == "__main__":
+
+# 主函数入口
+# if __name__ == "__main__":   <-表示只有运行这个py文件的时候代码才会跑
+# 当作import引用的时候不会运行
+
+    print("---智能agent已启动(请输入quit退出)---")
+    global_messages = [
+        {"role":"system","content":SYSTEM_PROMPT}
+
+#定义一个全局聊天记录global_messages
+#将SYSTEM_PROMPT(剧本大纲)交给ai_agent
+
+    ]
+    while True:
+
+#让用户能够一直问问题直到用户输入quit，exit，q结束循环
+
+        user_input = input("\n 你：")
+        if user_input.lower() in["quit","exit","q"]:
+            print("再见！")
+            break
+
+#结束循环
+
+        global_messages.append({"role": "user", "content": user_input})
+        run_agent(global_messages)
+
+#将问题传入全局聊天记录，和传入给run_agent处理本轮提问
+#将问题写入global_messages传入messages才此时二者的内存地址是一样的
+#messages.append()直接在内存地址里添加内容，故而让global_messages也能更新内容达到记忆
+#system:程序员设定的规则和工具，仅在开头出现一次
+#SYSTEM_PROMPT:相当于导演(程序员)给ai_agent的剧本大纲，用来定人设，立规矩，给工具
+#user:用户和非llm自己生成的外部信息
+#assistant:ai_agent自己
+
+#ReAct循环解读：将问题打包为messages进入循环
+#第一次循环：将messages传入给llm，llm决定要用哪个工具以及要处理的字符串是哪个，然后continue重新进入循环
+#第二次循环：调用工具进行字符串处理(计算或者是获取时间)
+#第三次循环：继续处理数据或者是匹配(if "Final Answer:" in output)得到答案
+#第四次...
+
+
+from datetime import datetime
+import re
+
+#正则：一套字符匹配规则，用来在字符里查找，校验，提取内容（要先import才能用）
+
+import os
+from dotenv import load_dotenv
+from openai import OpenAI
+
+load_dotenv()
+
+#执行加载默认自动读取当前目录的“.env”文件
+#一般在.env里存放api-key
+
+client = OpenAI(api_key = os.getenv("DEEPSEEK_API_KEY"),base_url="https://api.deepseek.com")
+
+#原本OpenAi这个库是给open ai用的但是ds的和它的一样
+#用base_url改接口兼容open ai
+#os.getenv()从程序的环境变量里读出叫"DEEPSEEK_API_KEY"的值
+#client是客户端的意思
+
+def calculator (expr:str) -> str:
+    try:
+        if not re.fullmatch(r"[0-9+\-*/().\s]+",expr):
+            return "错误：含非法字符"
+        return str(eval(expr))
+    except Exception as e:
+        return f"计算错误：{e}"
+
+#re.fullmatch表示expr必须完全匹配这个规则(正则里的一个常用函数)
+#在正则中‘-'单个减号表示至或者到的意思，要想表示减要用‘\’转义
+#[]是字符集的意思，表示在集合里的字符才能出现
+#\s是空格的意思
+#集合外的加号表示至少出现一次
+#（）中的r表示是原始字符串，有了它py解释器就不会解析它从而将其传给re模块去解析
+#加个r可以防止\被吃掉
+
+def get_time(_:str = "") -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+#此处变量名叫“_”为str类型，默认值为空格
+#agent所有工具统一接口全部都要接收入参
+#这里的get_time不需要参数就加个“_”占位保持接口一致
+#strftime把时间格式化位你指定的样子
+#y:年，m：月，d：日，H：小时，M：分钟，S：秒
+
+TOOLS = {"calculator":calculator , "get_time":get_time}
+SYSTEM_PROMPT = """你是一个 ReAct 智能体。可用工具：
+1. calculator：计算数学表达式，输入如 "2+3*4"
+2. get_time：获取当前时间，输入留空
+
+严格按以下格式输出：
+Thought: 你的思考
+Action: 工具名
+Action Input: 工具输入
+
+当能给出最终答案时，输出：
+Final Answer: 最终答案"""
+
+#系统提示词
+
+def call_llm(messages):
+    resp = client.chat.completions.create(
+        model = "deepseek-chat",
+        messages = messages,
+        temperature = 0
+    )
+    return resp.choices[0].message.content
+
+#client是我们刚刚建好的大模型的客户端对象
+#.chat对话聊天窗口，它支持多轮对话，能够区分user，assistant助手，system系统提示词
+#.completion老一代的单句续写窗口，让大模型生成回复内容
+#.chat.completion二者合起来就是聊天式生成回复
+#.create()调用它才能向给ds服务器发送网络请求
+#message就是信息列表
+#.chioce[0]取返回的第一条回答
+#.message.content大模型输出的文字内容
+#temperature=0，temperature越低回答越确定。此处=0表示让大模型每次尽量选概率最高，最稳妥的答案
+#temperature越高回复越天马行空，发挥创意
+
+
+def run_agent(messages):
+
+    for step in range(5):
+        print(f"\n--- 第 {step+1} 步 ---")
+        output = call_llm(messages)
+        print(output)
+        messages.append({"role": "assistant", "content": output})
+
+#这里只循环5次怕出错
+
+        action_match = re.search(r"Action:\s*(\w+)", output)
+        input_match = re.search(r"Action Input:\s*(.+)", output)
+
+#re.search()正则里的另一个常用函数，在函数里查找是否能匹配上这段正则
+#re.search(a,b)在b中查找是否有符合正则a的，有就返回，没有就返回none
+#re.search()找到第一个匹配上的就返回匹配对象，否则返回none
+#Action选工具，Action Input传给工具的参数<-agent经过thought自动判断
+#“\s”代表空格，Tab（制表符）       “*”量词：表示0个或者是多个
+#“\s*”表示有或者没有空格都匹配
+#“\w”代表a-z，A-Z，0-9，下划线
+#“()”捕获组：把括号内匹配的内容单独提取出来，后面.group(1)要用
+#（\w）就是把匹配到的a-z，A-Z，0-9.下划线都提取出来传到后面的.group(1)去
+#“.+”啥都能抓
+
+        if action_match and input_match:
+            tool_name = action_match.group(1).strip()
+            tool_input = input_match.group(1).strip()
+            print(f"-> 调用工具：{tool_name}，参数：{tool_input}")
+
+#“.group(1)”拿到的一个匹配的字符串
+#“.strip()”删掉字符串开头和结尾的空格，换行，防止字符串有多余的空格，报错
+
+            if tool_name in TOOLS:
+                obs = TOOLS[tool_name](tool_input)
+            else:
+                obs = f"错误：未知工具 {tool_name}"
+
+            print(f"-> 观察结果：{obs}")
+            messages.append({"role": "user", "content": f"Observation: {obs}"})
+
+#f：将{tool_name}{obs}变量的值放到这句话里面，没有f对话py会将其当做字符串的一部分
+#将obs结果包装回ressages传给llm，让其重新思考
+#ReAct语法规定外部工具返回的观测结果统一包装成user返回给llm
+
+            continue
+
+        if "Final Answer:" in output:
+            print("\n✅ 最终答案：", output.split("Final Answer:", 1)[1].strip())
+            return
+
+# “.split(分隔符，次数)”将字符串切开，切成列表
+# “.strip()”删掉字符串开头和结尾的空格，换行，
+# [1] 下标为1的字符串
+# 此处相当于先将output切分成两部分，"(1)切一次得两段"
+# 下标为1的就是Final Answer的答案
+# 就是res = output.split("Final Answer:", 1) = [Final Answer,答案]
+
+        messages.append({"role": "user", "content": "请严格按格式输出，或给出 Final Answer。"})
+
+# 防止llm乱生成，提醒他在下一轮循环改正错误(不一定会完全改正，但会提高准确率)
+
+    print("\n任务失败，请重试(ai在5步内给出答案)")
+
+if __name__ == "__main__":
+
+# 主函数入口
+# if __name__ == "__main__":   <-表示只有运行这个py文件的时候代码才会跑
+# 当作import引用的时候不会运行
+
+    print("---智能agent已启动(请输入quit退出)---")
+    global_messages = [
+        {"role":"system","content":SYSTEM_PROMPT}
+
+#定义一个全局聊天记录global_messages
+#将SYSTEM_PROMPT(剧本大纲)交给ai_agent
+
+    ]
+    while True:
+
+#让用户能够一直问问题直到用户输入quit，exit，q结束循环
+
+        user_input = input("\n 你：")
+        if user_input.lower() in["quit","exit","q"]:
+            print("再见！")
+            break
+
+#结束循环
+
+        global_messages.append({"role": "user", "content": user_input})
+        run_agent(global_messages)
+
+#将问题传入全局聊天记录，和传入给run_agent处理本轮提问
+#将问题写入global_messages传入messages才此时二者的内存地址是一样的
+#messages.append()直接在内存地址里添加内容，故而让global_messages也能更新内容达到记忆
