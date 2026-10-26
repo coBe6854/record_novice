@@ -199,7 +199,7 @@ streamlit run main.py
 
 
 ![检索截图](https://github.com/coBe6854/record_novice/blob/main/work/Snipaste_2026-10-26_19-37-17.png)
-![评测准确率截图](https://github.com/coBe6854/record_novice/blob/main/work/Snipaste_2026-10-26_19-37-17.png)
+![评测准确率截图](https://github.com/coBe6854/record_novice/blob/main/work/Snipaste_2026-10-26_19-36-51.png)
 
 
 
