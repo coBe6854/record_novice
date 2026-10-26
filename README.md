@@ -27,9 +27,11 @@
 \## 截图
 
 
-!\[初始页面截图](https://github.com/coBe6854/record_novice/raw/main/work/Snipaste_2026-10-26_21-27-20.png)
-!\[计算工具截图](https://github.com/coBe6854/record_novice/raw/main/work/Snipaste_2026-10-26_21-27-09.png)
-!\[检索工具截图](https://github.com/coBe6854/record_novice/raw/main/work/Snipaste_2026-10-26_21-28-41.png)
+![初始页面截图](https://github.com/coBe6854/record_novice/raw/main/work/Snipaste_2026-10-26_21-27-20.png)
+
+![计算工具截图](https://github.com/coBe6854/record_novice/raw/main/work/Snipaste_2026-10-26_21-27-09.png)
+
+![检索工具截图](https://github.com/coBe6854/record_novice/raw/main/work/Snipaste_2026-10-26_21-28-41.png)
 
 
 
@@ -192,6 +194,7 @@ streamlit run main.py
 
 
 ![检索截图](https://github.com/coBe6854/record_novice/raw/main/work/Snipaste_2026-10-26_19-37-17.png)
+
 ![评测准确率截图](https://github.com/coBe6854/record_novice/raw/main/work/Snipaste_2026-10-26_19-36-51.png)
 
 
