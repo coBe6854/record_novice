@@ -194,6 +194,15 @@ streamlit run main.py
 
 
 
+\##评测与运行截图
+
+
+
+![检索截图](https://github.com/coBe6854/record_novice/blob/main/work/Snipaste_2026-10-26_19-37-17.png)
+![评测准确率截图]()
+
+
+
 \## 已知不足
 
 
