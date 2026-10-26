@@ -27,9 +27,9 @@
 \## 截图
 
 
-
-!\[界面截图](screenshot1.png)
-
+!\[初始页面截图]()
+!\[计算工具截图](https://github.com/coBe6854/record_novice/blob/main/work/Snipaste_2026-10-26_21-27-09.png)
+!\[检索工具截图]()
 
 
 !\[问答截图](screenshot2.png)
