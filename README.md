@@ -27,7 +27,7 @@
 \## 截图
 
 
-!\[初始页面截图]()
+!\[初始页面截图](https://github.com/coBe6854/record_novice/blob/main/work/Snipaste_2026-10-26_21-27-20.png)
 !\[计算工具截图](https://github.com/coBe6854/record_novice/blob/main/work/Snipaste_2026-10-26_21-27-09.png)
 !\[检索工具截图]()
 
