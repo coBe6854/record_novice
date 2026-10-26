@@ -29,14 +29,7 @@
 
 !\[初始页面截图](https://github.com/coBe6854/record_novice/blob/main/work/Snipaste_2026-10-26_21-27-20.png)
 !\[计算工具截图](https://github.com/coBe6854/record_novice/blob/main/work/Snipaste_2026-10-26_21-27-09.png)
-!\[检索工具截图]()
-
-
-!\[问答截图](screenshot2.png)
-
-
-
-> 截图放在项目根目录，文件名分别是 `screenshot1.png`、`screenshot2.png`。
+!\[检索工具截图](https://github.com/coBe6854/record_novice/blob/main/work/Snipaste_2026-10-26_21-28-41.png)
 
 
 
